@@ -1,0 +1,161 @@
+# Preprocess the MNIST dataset
+# Function to create a new dataset of only twos and threes using the information in labels
+# Threshold the images to be binary (0 or 1)
+# Here, threshold was set to 5
+
+load_mnist <- function() 
+{
+  load_image_file <- function(filename) 
+  {
+    ret = list()
+    f = file(filename,'rb')
+    readBin(f,'integer',n=1,size=4,endian='big')
+    ret$n = readBin(f,'integer',n=1,size=4,endian='big')
+    nrow = readBin(f,'integer',n=1,size=4,endian='big')
+    ncol = readBin(f,'integer',n=1,size=4,endian='big')
+    x = readBin(f,'integer',n=ret$n*nrow*ncol,size=1,signed=F)
+    ret$x = matrix(x, ncol=nrow*ncol, byrow=T)
+    close(f)
+    ret
+  }
+  load_label_file <- function(filename) 
+  {
+    f = file(filename,'rb')
+    readBin(f,'integer',n=1,size=4,endian='big')
+    n = readBin(f,'integer',n=1,size=4,endian='big')
+    y = readBin(f,'integer',n=n,size=1,signed=F)
+    close(f)
+    y
+  }
+  train <<- load_image_file('train-images-idx3-ubyte')
+  #test <<- load_image_file('mnist/t10k-images-idx3-ubyte')
+  
+  train$y <<- load_label_file('train-labels-idx1-ubyte')
+  #test$y <<- load_label_file('mnist/t10k-labels-idx1-ubyte')  
+}
+
+show_digit <- function(arr784, col=gray(12:1/12), ...) 
+{
+  image(matrix(arr784, nrow=28)[,28:1], col=col, ...)
+}
+
+#setwd("               ")
+# Set working directory here <----------------------------------------------
+load_mnist()
+digits <- train$x[1:1000,] 
+labels <- train$y[1:1000] 
+dim(digits)
+
+index <- c(which(labels ==3), which(labels==2))
+index <- sort(index)
+subDigits <- digits[index,]
+
+subDigits[subDigits<5]=0
+subDigits[subDigits>=5]=1
+
+# Function that calculates variational lower bound F and entropy to return the 
+# maximized likelihood of which cluster an image should belong to based on 
+# a bernoulli assumption
+
+em_bernoulli <- function(K, x, seed = 545)
+{
+  set.seed(seed)
+  mu <- matrix(0,nrow=nrow(x), ncol=K)
+  sum_one <- function(K, M=1) 
+  {
+    vec <- runif(K)
+    vec / sum(vec) * M
+  }
+  for (i in 1:nrow(x))
+  {
+    mu[i,] <- sum_one(K)
+  }
+  # Initialize pi vector such that sum(pi) = 1
+  pi <- sum_one(K)
+  # Initialize q matrix
+  q_top <- q <- matrix(0,nrow=ncol(x), ncol=K)
+  
+  epsilon <- 10^-50
+  #threshold <- 0.00001
+  new_loglikelihood <- entropy_sum <- 1
+  log_likelihood <- matrix(0,nrow=ncol(x), ncol=K)
+  entropy <- matrix(0,nrow=ncol(x), ncol=K)
+  flag <- TRUE
+  iter <- 1
+  while(flag)
+  {
+    iter <- iter +1
+    
+    # E-Step
+    for (j in 1:ncol(x))
+    {
+      for (k in 1:K)
+      {
+        q_top[j,k] <- pi[k]*prod((mu[,k]^x[,j])*((1-mu[,k])^(1-x[,j])))
+        #if (q_top[j,k] < 0)
+        #{
+        #  q_top[j,k] <- 0
+        #}
+      }
+    }
+    q <- q_top/rowSums(q_top)
+    
+    # M-Step
+    for (i in 1:nrow(x))
+    {
+      for (k in 1:K)
+      {
+        mu[i,k] <- x[i,]%*%q[,k]/sum(q[,k])
+        pi[k] <- sum(q[,k])/ncol(x)
+      }
+    }
+    
+    # Log-likelihood
+    for (j in 1:ncol(x))
+    {
+      for (k in 1:K)
+      {
+       log_likelihood[j,k] <- q[j,k]*(log(pi[k]) + t(x[,j])%*%(log(mu[,k]+epsilon)) + t(1-x[,j])%*%(log(1-mu[,k]+epsilon)))
+      }
+    }
+    
+    for (j in 1:ncol(x))
+    {
+      for (k in 1:K)
+      {
+        entropy[j,k] <- q[j,k]*log(q[j,k]+epsilon)
+      }
+    }
+    entropy_sum <- append(entropy_sum, sum(entropy))
+    new_loglikelihood <- append(new_loglikelihood, sum(log_likelihood) - sum(entropy))
+    
+   if (abs(new_loglikelihood[iter] - new_loglikelihood[iter-1]) < epsilon)
+   {
+     flag <- FALSE
+   }
+  }
+  result <- list(mu, pi, new_loglikelihood[-1], entropy_sum[-1], entropy)
+  names(result) <- c("mu", "pi", "new_loglikelihood", "entropy_sum", "entropy")
+  return(result)
+}
+
+# Data Visualization to show the digits and which clusters they belong to
+# as well as the plot of the variational lower bound F
+
+x <- t(subDigits) 
+# col = image or predictors 
+# row = pixels or observations
+cluster_2 <- em_bernoulli(2, x)
+show_digit(cluster_2$mu[,1], main = "K=2, cluster 1")
+show_digit(cluster_2$mu[,2], main = "K=2, cluster 2")
+plot(cluster_2$new_loglikelihood, main = "Stability of F", xlab = "Iteration Step", ylab = "F")
+lines(cluster_2$new_loglikelihood, col="red")
+cluster_2$pi
+
+cluster_3 <- em_bernoulli(3,x)
+show_digit(cluster_3$mu[,1], main = "K=3, cluster 1")
+show_digit(cluster_3$mu[,2], main = "K=3, cluster 2")
+show_digit(cluster_3$mu[,3], main = "K=3, cluster 3")
+plot(cluster_3$new_loglikelihood, main = "Stability of F", xlab = "Iteration Step", ylab = "F")
+lines(cluster_3$new_loglikelihood, col="red")
+cluster_3$pi
