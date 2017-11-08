@@ -55,7 +55,7 @@ subDigits[subDigits>=5]=1
 
 # Function that calculates variational lower bound F and entropy to return the 
 # maximized likelihood of which cluster an image should belong to based on 
-# a bernoulli assumption
+# a bernoulli assumption using the Expectation Maximization Algorithm.
 
 em_bernoulli <- function(K, x, seed = 545)
 {
