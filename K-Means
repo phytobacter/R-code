@@ -1,0 +1,84 @@
+# Returns the cluster assignments
+
+{ 
+  # Initialization
+  set.seed(seed)
+  distribution <- rep(0, K)
+  cluster <- list()
+  cluster <- sapply(1:K, function(x) cluster[[x]] = c()) 
+  cluster_old <- cluster
+  cluster_all <- list()
+  loss <- list(c())
+  L <- c()
+  loss_iteration <- list()
+  loss_iteration <- sapply(1:N, function(x) loss_iteration[[x]]=c()) 
+  min_distance<-rep(0,1000)
+  
+  for (n in 1:N)
+  {
+    # Initialize the centroids/centers
+    initial_center <- sample(1:1000, K, replace = FALSE) 
+    mu <- digits[initial_center, ] 
+    stopping_criteria <- FALSE
+    k <- 0
+    
+    while(stopping_criteria == FALSE)
+    {
+      k = k+1
+      cluster <- list()
+      cluster <- sapply(1:K, function(x) cluster[[x]]= c()) 
+      
+      for (i in 1:dim(digits)[1])
+      {
+        distribution <- sapply(1:dim(mu)[1], function(x) sum((digits[i,]- mu[x,])^2)) 
+        cluster_index <- min(which(distribution == min(distribution)))
+        cluster[[cluster_index]] <- c(i, cluster[[cluster_index]]) 
+        min_distance[i]<-min(distribution)
+      }
+      
+      mu <- t(sapply(1:K, function(x) colMeans(digits[cluster[[x]],])))
+      
+      # Keep repeating until old cluster assignments are the same as new cluster assignments
+      if(identical(cluster,cluster_old))
+      {
+        stopping_criteria=TRUE 
+      }
+      cluster_old <- cluster
+      total_loss_iteration <- sum(min_distance)
+      loss_iteration[[n]] <- c(loss_iteration[[n]], total_loss_iteration)
+    }
+    
+    cluster_all[[n]] <- cluster_old
+    total_loss <- sum(loss_iteration[[n]])
+    L <- c(L,total_loss) 
+  }
+  
+  bestL <- min(L)
+  best_cluster_index <- which(min(L)==L)
+  best_cluster <- cluster_all[[best_cluster_index]]
+  cluster_parameter <- t(sapply(1:K, function(x) colMeans(digits[best_cluster[[x]],]))) 
+  cluster_parameter_magnitude <- rowSums(cluster_parameter^2)
+  best_cluster_loss <- loss_iteration[[best_cluster_index]]
+  output <- list(bestLoss = bestL, 
+                 cluster_parameter = cluster_parameter, 
+                 best_cluster = best_cluster, 
+                 kLoss = best_cluster_loss, 
+                 nLoss = L)
+  return(output)
+}
+
+# Visualizing the clustered pixels along with the losst function for some prespecfied k-means cluster
+cluster10 <- my_kmeans(digits, 10, 25, 20) 
+cluster20 <- my_kmeans(digits, 20, 25, 15)
+
+final_data_frame <- rbind(data.frame(cluster ="5", loss = cluster5$nLoss), 
+                 data.frame(cluster ="10", loss = cluster10$nLoss), 
+                 data.frame(cluster ="20", loss = cluster20$nLoss))
+
+par(mfrow=c(2,3))
+unlist(sapply(1:5, function(x) show_digit(cluster5$cluster_parameter[x,], col=gray(12:1/12)))) 
+plot(cluster5$kLoss, 
+     main="Loss Function, K=5",
+     xlab="Iteration", 
+     ylab="Loss") 
+lines(cluster5$kLoss)
