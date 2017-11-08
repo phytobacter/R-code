@@ -1,4 +1,4 @@
-# Preprocess the MNIST dataset
+# Preprocess the MNIST dataset 
 # Function to create a new dataset of only twos and threes using the information in labels
 # Threshold the images to be binary (0 or 1)
 # Here, threshold was set to 5
